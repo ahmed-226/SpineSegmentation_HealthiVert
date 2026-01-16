@@ -745,9 +745,6 @@ class VertebraeSegmentationTrainer(BaseTrainer):
         )
         
         logger.info(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
-        self._init_optimizer()
-        self._init_data_loaders()
-        self.init_tensorboard()
     
     def _init_model(self):
         """Initialize the network"""
