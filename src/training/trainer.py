@@ -180,7 +180,7 @@ class SpineLocalizationTrainer(BaseTrainer):
             train_dataset,
             batch_size=self.stage_config.batch_size,
             shuffle=True,
-            num_workers=self.config.num_workers if hasattr(self.config, 'num_workers') else 4,
+            num_workers=self.config.num_workers if hasattr(self.config, 'num_workers') else 2,
             pin_memory=self.config.pin_memory if hasattr(self.config, 'pin_memory') else True
         )
         
@@ -188,7 +188,7 @@ class SpineLocalizationTrainer(BaseTrainer):
             val_dataset,
             batch_size=1,
             shuffle=False,
-            num_workers=self.config.num_workers if hasattr(self.config, 'num_workers') else 4
+            num_workers=self.config.num_workers if hasattr(self.config, 'num_workers') else 2
         )
         
         logger.info(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
@@ -429,7 +429,7 @@ class VertebraeLocalizationTrainer(BaseTrainer):
             train_dataset,
             batch_size=self.stage_config.batch_size,
             shuffle=True,
-            num_workers=self.config.num_workers if hasattr(self.config, 'num_workers') else 4,
+            num_workers=self.config.num_workers if hasattr(self.config, 'num_workers') else 2,
             pin_memory=self.config.pin_memory if hasattr(self.config, 'pin_memory') else True
         )
         
@@ -437,7 +437,7 @@ class VertebraeLocalizationTrainer(BaseTrainer):
             val_dataset,
             batch_size=1,
             shuffle=False,
-            num_workers=self.config.num_workers if hasattr(self.config, 'num_workers') else 4
+            num_workers=self.config.num_workers if hasattr(self.config, 'num_workers') else 2
         )
         
         logger.info(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
@@ -742,7 +742,7 @@ class VertebraeSegmentationTrainer(BaseTrainer):
             train_dataset,
             batch_size=self.stage_config.batch_size,
             shuffle=True,
-            num_workers=self.config.num_workers if hasattr(self.config, 'num_workers') else 4,
+            num_workers=self.config.num_workers if hasattr(self.config, 'num_workers') else 2,
             pin_memory=self.config.pin_memory if hasattr(self.config, 'pin_memory') else True
         )
         
@@ -750,7 +750,7 @@ class VertebraeSegmentationTrainer(BaseTrainer):
             val_dataset,
             batch_size=1,
             shuffle=False,
-            num_workers=self.config.num_workers if hasattr(self.config, 'num_workers') else 4
+            num_workers=self.config.num_workers if hasattr(self.config, 'num_workers') else 2
         )
         
         logger.info(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")

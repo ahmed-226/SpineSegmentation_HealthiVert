@@ -679,11 +679,19 @@ class VertebraeLocalizationDataset(Dataset):
                 flip_probability=config.get('flip_probability', 0.5)
             ))
         
-        # Elastic deformation (reduced displacement to avoid folding warning)
+        # Elastic deformation - calculate safe max_displacement to avoid folding
+        # Grid spacing = image_size / (num_control_points - 1)
+        # max_displacement must be < grid_spacing to avoid folding
         if config.get('elastic_deformation', True):
+            num_control_points = 5  # Reduced from 7 for larger grid spacing
+            # Calculate safe displacement: grid_spacing = min(image_size) / (num_control_points - 1)
+            # For image_size (96, 96, 128) with 5 control points: 96/4 = 24, so max_disp < 24
+            # Use conservative value of 5 to be safe across all image sizes
+            safe_max_displacement = 5.0
+            print(f"[DEBUG] Elastic deformation: num_control_points={num_control_points}, max_displacement={safe_max_displacement}")
             transforms.append(tio.RandomElasticDeformation(
-                num_control_points=7,
-                max_displacement=config.get('elastic_max_deformation', (8, 8, 8))  # Reduced from 25
+                num_control_points=num_control_points,
+                max_displacement=safe_max_displacement
             ))
         
         # Intensity augmentations
