@@ -321,14 +321,16 @@ def main():
                         help='Path to Stage 2 checkpoint (required for Stage 3 if training from scratch)')
     
     # Training parameters
+    parser.add_argument('--iterations', type=int, default=None,
+                        help='Max training iterations (default: 50000)')
     parser.add_argument('--epochs', type=int, default=None,
-                        help='Number of training epochs (default: stage-dependent)')
+                        help='Number of training epochs (alternative to --iterations, calculates based on dataset size)')
     parser.add_argument('--batch_size', type=int, default=1,
                         help='Training batch size')
     parser.add_argument('--learning_rate', type=float, default=1e-4,
                         help='Initial learning rate')
-    parser.add_argument('--num_workers', type=int, default=4,
-                        help='Number of data loading workers')
+    parser.add_argument('--num_workers', type=int, default=2,
+                        help='Number of data loading workers (default: 2 for Colab)')
     
     # Hardware
     parser.add_argument('--gpu', type=int, default=0,
@@ -360,6 +362,10 @@ def main():
     logger.info(f"GPU: {args.gpu}")
     logger.info(f"Batch size: {args.batch_size}")
     logger.info(f"Learning rate: {args.learning_rate}")
+    if args.iterations:
+        logger.info(f"Max iterations: {args.iterations}")
+    if args.epochs:
+        logger.info(f"Epochs: {args.epochs}")
     
     # Create configuration
     config = PipelineConfig()
@@ -368,9 +374,30 @@ def main():
     config.data.data_root = args.data_dir
     config.data.batch_size = args.batch_size
     config.data.num_workers = args.num_workers
+    
+    # Update learning rate for all stages
     config.spine_localization.learning_rate = args.learning_rate
     config.vertebrae_localization.learning_rate = args.learning_rate
     config.vertebrae_segmentation.learning_rate = args.learning_rate
+    
+    # Update batch size for all stages
+    config.spine_localization.batch_size = args.batch_size
+    config.vertebrae_localization.batch_size = args.batch_size
+    config.vertebrae_segmentation.batch_size = args.batch_size
+    
+    # Update max iterations if specified
+    if args.iterations:
+        config.spine_localization.max_iterations = args.iterations
+        config.vertebrae_localization.max_iterations = args.iterations
+        config.vertebrae_segmentation.max_iterations = args.iterations
+    elif args.epochs:
+        # Estimate iterations from epochs (will be recalculated per stage based on dataset size)
+        # For now, use epochs * estimated_samples_per_epoch
+        estimated_iters = args.epochs * 100  # rough estimate, actual calc happens per stage
+        config.spine_localization.max_iterations = estimated_iters
+        config.vertebrae_localization.max_iterations = estimated_iters
+        config.vertebrae_segmentation.max_iterations = estimated_iters
+        logger.info(f"Estimated max iterations from epochs: {estimated_iters} (will be adjusted per stage)")
     
     try:
         if args.stage == '1' or args.stage == 'all':
