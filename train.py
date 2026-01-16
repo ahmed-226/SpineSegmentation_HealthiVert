@@ -91,10 +91,11 @@ def create_stage2_model(config: VertebraeLocalizationConfig, device: torch.devic
 
 def create_stage3_model(config: VertebraeSegmentationConfig, device: torch.device) -> torch.nn.Module:
     """Create vertebrae segmentation model"""
-    # Input: image (1) + distance transforms (num_landmarks)
+    # Input: image only (1 channel) - simplified version
+    # Note: Full pipeline would include distance transforms for each landmark
     model = SegmentationUNet(
-        in_channels=1 + config.num_labels,
-        num_classes=config.num_labels + 1,  # +1 for background
+        in_channels=1,  # Just image for now
+        num_classes=config.num_labels + 1,  # +1 for background (26 + 1 = 27)
         num_filters_base=config.num_filters_base
     ).to(device)
     return model

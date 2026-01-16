@@ -360,6 +360,8 @@ class SpineLocalizationTrainer(BaseTrainer):
             if self.current_iter % self.stage_config.snapshot_interval == 0:
                 self.save_checkpoint(f'checkpoint_{self.current_iter}.pth')
         
+        # Always save final model at end of training
+        self.save_checkpoint('final_model.pth')
         logger.info("Training completed!")
         self.writer.close()
 
@@ -684,6 +686,8 @@ class VertebraeLocalizationTrainer(BaseTrainer):
             if self.current_iter % self.stage_config.snapshot_interval == 0:
                 self.save_checkpoint(f'checkpoint_{self.current_iter}.pth')
         
+        # Always save final model at end of training
+        self.save_checkpoint('final_model.pth')
         logger.info("Training completed!")
         self.writer.close()
 
@@ -938,6 +942,8 @@ class VertebraeSegmentationTrainer(BaseTrainer):
             if self.current_iter % self.stage_config.snapshot_interval == 0:
                 self.save_checkpoint(f'checkpoint_{self.current_iter}.pth')
         
+        # Always save final model at end of training
+        self.save_checkpoint('final_model.pth')
         logger.info("Training completed!")
         self.writer.close()
 

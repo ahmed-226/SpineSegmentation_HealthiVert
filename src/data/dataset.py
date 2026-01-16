@@ -1041,8 +1041,11 @@ class VertebraeSegmentationDataset(Dataset):
         size: Tuple[int, int, int],
         pad_value: float = 0
     ) -> np.ndarray:
-        """Crop image around center point"""
+        """Crop image around center point with proper boundary handling"""
         result = np.full(size, pad_value, dtype=image.dtype)
+        
+        # Ensure center is within image bounds (clamp to valid range)
+        center = np.clip(center, [0, 0, 0], np.array(image.shape) - 1)
         
         # Calculate crop bounds
         half_size = np.array(size) // 2
@@ -1053,9 +1056,18 @@ class VertebraeSegmentationDataset(Dataset):
         src_start = np.maximum(start, 0)
         src_end = np.minimum(end, image.shape)
         
+        # Check if we have a valid region to copy
+        if np.any(src_start >= src_end):
+            # No valid region, return padded result
+            return result
+        
         # Calculate destination positions
         dst_start = src_start - start
         dst_end = dst_start + (src_end - src_start)
+        
+        # Ensure destination slices are valid
+        if np.any(dst_start >= dst_end):
+            return result
         
         # Copy data
         result[
