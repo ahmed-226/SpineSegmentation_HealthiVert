@@ -1,0 +1,5 @@
+verse19/
+others/
+__pycache__/
+*.pyc
+venv/
