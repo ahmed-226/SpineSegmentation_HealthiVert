@@ -83,15 +83,20 @@ def find_verse_subjects(data_dir: Path) -> Dict[str, Dict]:
             
             subject_id = subject_dir.name  # e.g., 'sub-verse004'
             
-            # Find CT image
-            ct_files = list(subject_dir.glob('*_ct.nii.gz'))
+            # Find CT image - filter to only include actual files (not directories)
+            ct_files = [f for f in subject_dir.glob('*_ct.nii.gz') if f.is_file()]
+            ct_files += [f for f in subject_dir.glob('*_ct.nii') if f.is_file()]
             if not ct_files:
-                ct_files = list(subject_dir.glob('*.nii.gz'))
+                ct_files = [f for f in subject_dir.glob('*.nii.gz') if f.is_file()]
+                ct_files += [f for f in subject_dir.glob('*.nii') if f.is_file()]
             
             if not ct_files:
                 print(f"Warning: No CT image found for {subject_id}")
                 continue
             
+            # Prefer .nii.gz if duplicates exist, otherwise take first
+            # Sort to prioritize .nii.gz (shorter path length after extension swap) and ensure deterministic selection
+            ct_files.sort(key=lambda p: (0 if str(p).endswith('.nii.gz') else 1, str(p)))
             image_path = ct_files[0]
             
             # Find corresponding derivatives
@@ -100,13 +105,17 @@ def find_verse_subjects(data_dir: Path) -> Dict[str, Dict]:
             landmarks_path = None
             
             if deriv_subject_dir.exists():
-                # Find segmentation mask
-                mask_files = list(deriv_subject_dir.glob('*_seg-vert_msk.nii.gz'))
+                # Find segmentation mask - filter to only include actual files
+                mask_files = [f for f in deriv_subject_dir.glob('*_seg-vert_msk.nii.gz') if f.is_file()]
+                mask_files += [f for f in deriv_subject_dir.glob('*_seg-vert_msk.nii') if f.is_file()]
                 if mask_files:
+                    mask_files.sort(key=lambda p: (0 if str(p).endswith('.nii.gz') else 1, str(p)))
                     mask_path = mask_files[0]
                 
-                # Find landmarks JSON
+                # Find landmarks JSON - check both naming conventions
                 landmarks_files = list(deriv_subject_dir.glob('*_seg-subreg_ctd.json'))
+                if not landmarks_files:
+                    landmarks_files = list(deriv_subject_dir.glob('*_seg-vb_ctd.json'))
                 if landmarks_files:
                     landmarks_path = landmarks_files[0]
             

@@ -335,7 +335,9 @@ def main():
     
     # Hardware
     parser.add_argument('--gpu', type=int, default=0,
-                        help='GPU device ID to use')
+                        help='GPU device ID to use (ignored if --multi_gpu is set)')
+    parser.add_argument('--multi_gpu', action='store_true',
+                        help='Use all available GPUs with DataParallel')
     parser.add_argument('--seed', type=int, default=42,
                         help='Random seed for reproducibility')
     
@@ -345,7 +347,8 @@ def main():
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed(args.seed)
-        torch.cuda.set_device(args.gpu)
+        if not args.multi_gpu:
+            torch.cuda.set_device(args.gpu)
     
     # Create output directory
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)

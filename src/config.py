@@ -25,8 +25,8 @@ class SpineLocalizationConfig:
     batch_size: int = 1
     learning_rate: float = 0.0001
     max_iterations: int = 50000
-    test_interval: int = 5000
-    snapshot_interval: int = 5000
+    test_interval: int = 500  # Validate more frequently (was 5000)
+    snapshot_interval: int = 1000  # Save checkpoints more frequently (was 5000)
     
     # Heatmap generation
     heatmap_sigma: float = 4.0
@@ -53,8 +53,8 @@ class VertebraeLocalizationConfig:
     batch_size: int = 1
     learning_rate: float = 0.0001
     max_iterations: int = 50000
-    test_interval: int = 5000
-    snapshot_interval: int = 5000
+    test_interval: int = 500  # Validate more frequently (was 5000)
+    snapshot_interval: int = 1000  # Save checkpoints more frequently (was 5000)
     gradient_clip_norm: float = 10000.0
     
     # Heatmap configuration
@@ -80,8 +80,8 @@ class VertebraeSegmentationConfig:
     batch_size: int = 1
     learning_rate: float = 0.0001
     max_iterations: int = 50000
-    test_interval: int = 5000
-    snapshot_interval: int = 5000
+    test_interval: int = 500  # Validate more frequently (was 5000)
+    snapshot_interval: int = 1000  # Save checkpoints more frequently (was 5000)
 
 
 @dataclass

@@ -46,21 +46,20 @@ class BaseTrainer:
         stage: str,
         output_dir: str,
         cv_fold: int = 0,
-        resume_checkpoint: Optional[str] = None
+        resume_checkpoint: Optional[str] = None,
+        use_multi_gpu: bool = False
     ):
         self.config = config
         self.stage = stage
         self.output_dir = Path(output_dir)
         self.cv_fold = cv_fold
+        self.use_multi_gpu = use_multi_gpu
         
         # Create output directory
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Setup device
-        self.device = torch.device(
-            config.device if torch.cuda.is_available() else 'cpu'
-        )
-        logger.info(f"Using device: {self.device}")
+        # Setup device and multi-GPU
+        self._setup_device()
         
         # Initialize components
         self.model = None
@@ -78,6 +77,40 @@ class BaseTrainer:
         if resume_checkpoint:
             self.load_checkpoint(resume_checkpoint)
     
+    def _setup_device(self):
+        """Setup device(s) for training"""
+        if torch.cuda.is_available():
+            self.num_gpus = torch.cuda.device_count()
+            if self.use_multi_gpu and self.num_gpus > 1:
+                # Use all available GPUs
+                self.device = torch.device('cuda')
+                self.gpu_ids = list(range(self.num_gpus))
+                logger.info(f"Multi-GPU training enabled: Using {self.num_gpus} GPUs {self.gpu_ids}")
+            else:
+                # Use single GPU
+                self.device = torch.device(self.config.device if hasattr(self.config, 'device') else 'cuda:0')
+                self.gpu_ids = None
+                logger.info(f"Using single GPU: {self.device}")
+        else:
+            self.device = torch.device('cpu')
+            self.gpu_ids = None
+            self.num_gpus = 0
+            logger.info("Using CPU")
+    
+    def wrap_model_for_multi_gpu(self, model: nn.Module) -> nn.Module:
+        """Wrap model with DataParallel if multi-GPU is enabled"""
+        model = model.to(self.device)
+        if self.use_multi_gpu and self.gpu_ids is not None and len(self.gpu_ids) > 1:
+            model = nn.DataParallel(model, device_ids=self.gpu_ids)
+            logger.info(f"Model wrapped with DataParallel on GPUs: {self.gpu_ids}")
+        return model
+    
+    def unwrap_model(self, model: nn.Module) -> nn.Module:
+        """Get the underlying model from DataParallel wrapper"""
+        if isinstance(model, nn.DataParallel):
+            return model.module
+        return model
+    
     def init_tensorboard(self):
         """Initialize TensorBoard writer"""
         log_dir = self.output_dir / 'logs' / f'fold_{self.cv_fold}'
@@ -86,9 +119,12 @@ class BaseTrainer:
     
     def save_checkpoint(self, filename: str = 'checkpoint.pth'):
         """Save training checkpoint"""
+        # Unwrap model if using DataParallel to save just the model weights
+        model_to_save = self.unwrap_model(self.model)
+        
         checkpoint = {
             'iteration': self.current_iter,
-            'model_state_dict': self.model.state_dict(),
+            'model_state_dict': model_to_save.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'best_val_loss': self.best_val_loss
         }
@@ -109,7 +145,9 @@ class BaseTrainer:
         self.best_val_loss = checkpoint.get('best_val_loss', float('inf'))
         
         if self.model is not None:
-            self.model.load_state_dict(checkpoint['model_state_dict'])
+            # Load into the unwrapped model if using DataParallel
+            model_to_load = self.unwrap_model(self.model)
+            model_to_load.load_state_dict(checkpoint['model_state_dict'])
         
         if self.optimizer is not None:
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -118,6 +156,7 @@ class BaseTrainer:
             self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         
         logger.info(f"Loaded checkpoint from iteration {self.current_iter}")
+
     
     def log_metrics(self, metrics: Dict[str, float], prefix: str = 'train'):
         """Log metrics to TensorBoard"""
@@ -149,19 +188,20 @@ class SpineLocalizationTrainer(BaseTrainer):
         model: Optional[nn.Module] = None,
         train_dataset: Optional[SpineLocalizationDataset] = None,
         val_dataset: Optional[SpineLocalizationDataset] = None,
-        device: Optional[torch.device] = None
+        device: Optional[torch.device] = None,
+        use_multi_gpu: bool = False
     ):
-        super().__init__(config, 'spine_localization', output_dir, cv_fold, resume_checkpoint)
+        super().__init__(config, 'spine_localization', output_dir, cv_fold, resume_checkpoint, use_multi_gpu)
         self.stage_config = config.spine_localization
         
-        # Override device if provided
-        if device is not None:
+        # Override device if provided (only for single GPU mode)
+        if device is not None and not use_multi_gpu:
             self.device = device
         
         # Initialize components
         if model is not None:
-            self.model = model.to(self.device)
-            logger.info(f"Using provided model with {sum(p.numel() for p in self.model.parameters()):,} parameters")
+            self.model = self.wrap_model_for_multi_gpu(model)
+            logger.info(f"Using provided model with {sum(p.numel() for p in model.parameters()):,} parameters")
         else:
             self._init_model()
         
@@ -381,13 +421,14 @@ class VertebraeLocalizationTrainer(BaseTrainer):
         model: Optional[nn.Module] = None,
         train_dataset: Optional[VertebraeLocalizationDataset] = None,
         val_dataset: Optional[VertebraeLocalizationDataset] = None,
-        device: Optional[torch.device] = None
+        device: Optional[torch.device] = None,
+        use_multi_gpu: bool = False
     ):
-        super().__init__(config, 'vertebrae_localization', output_dir, cv_fold, resume_checkpoint)
+        super().__init__(config, 'vertebrae_localization', output_dir, cv_fold, resume_checkpoint, use_multi_gpu)
         self.stage_config = config.vertebrae_localization
         
-        # Override device if provided
-        if device is not None:
+        # Override device if provided (only for single GPU mode)
+        if device is not None and not use_multi_gpu:
             self.device = device
         
         # Initialize sigmas first (needed by optimizer)
@@ -395,8 +436,8 @@ class VertebraeLocalizationTrainer(BaseTrainer):
         
         # Initialize components
         if model is not None:
-            self.model = model.to(self.device)
-            logger.info(f"Using provided model with {sum(p.numel() for p in self.model.parameters()):,} parameters")
+            self.model = self.wrap_model_for_multi_gpu(model)
+            logger.info(f"Using provided model with {sum(p.numel() for p in model.parameters()):,} parameters")
         else:
             self._init_model()
         
@@ -710,20 +751,21 @@ class VertebraeSegmentationTrainer(BaseTrainer):
         model: Optional[nn.Module] = None,
         train_dataset: Optional[VertebraeSegmentationDataset] = None,
         val_dataset: Optional[VertebraeSegmentationDataset] = None,
-        device: Optional[torch.device] = None
+        device: Optional[torch.device] = None,
+        use_multi_gpu: bool = False
     ):
-        super().__init__(config, 'vertebrae_segmentation', output_dir, cv_fold, resume_checkpoint)
+        super().__init__(config, 'vertebrae_segmentation', output_dir, cv_fold, resume_checkpoint, use_multi_gpu)
         self.stage_config = config.vertebrae_segmentation
         self.labels_folder = labels_folder
         
-        # Override device if provided
-        if device is not None:
+        # Override device if provided (only for single GPU mode)
+        if device is not None and not use_multi_gpu:
             self.device = device
         
         # Initialize components
         if model is not None:
-            self.model = model.to(self.device)
-            logger.info(f"Using provided model with {sum(p.numel() for p in self.model.parameters()):,} parameters")
+            self.model = self.wrap_model_for_multi_gpu(model)
+            logger.info(f"Using provided model with {sum(p.numel() for p in model.parameters()):,} parameters")
         else:
             self._init_model()
         

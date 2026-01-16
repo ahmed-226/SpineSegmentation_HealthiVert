@@ -310,7 +310,10 @@ class SpineLocalizationInference:
         ).to(self.device)
         
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
-        self.model.load_state_dict(checkpoint['model_state_dict'])
+        if 'model_state_dict' in checkpoint:
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            self.model.load_state_dict(checkpoint)
         self.model.eval()
         
         # Preprocessor
@@ -398,7 +401,10 @@ class VertebraeLocalizationInference:
         ).to(self.device)
         
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
-        self.model.load_state_dict(checkpoint['model_state_dict'])
+        if 'model_state_dict' in checkpoint:
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            self.model.load_state_dict(checkpoint)
         self.model.eval()
         
         # Preprocessor
@@ -524,13 +530,16 @@ class VertebraeSegmentationInference:
         # Load model
         self.model = SegmentationUNet(
             in_channels=1,
-            num_classes=self.stage_config.num_labels,
+            num_classes=self.stage_config.num_labels + 1,
             num_filters_base=self.stage_config.num_filters_base,
             num_levels=self.stage_config.num_levels
         ).to(self.device)
         
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
-        self.model.load_state_dict(checkpoint['model_state_dict'])
+        if 'model_state_dict' in checkpoint:
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            self.model.load_state_dict(checkpoint)
         self.model.eval()
         
         # Preprocessor

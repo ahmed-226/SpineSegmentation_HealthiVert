@@ -1,4 +1,4 @@
-"""Utilities package - Heatmap generation and postprocessing"""
+"""Utilities package - Heatmap generation, postprocessing, and cross-validation"""
 
 from .heatmap_utils import (
     generate_heatmap_target,
@@ -23,4 +23,11 @@ from .postprocessing import (
     VERTEBRAE_NAMES,
     VERTEBRAE_DISTANCES_MEAN,
     VERTEBRAE_DISTANCES_STD
+)
+
+from .kfold import (
+    create_kfold_splits,
+    save_fold_splits,
+    load_fold_split,
+    get_fold_summary
 )

@@ -199,14 +199,24 @@ def load_all_verse_landmarks(data_folder: str, id_list: List[str], num_landmarks
         Dictionary mapping subject_id to list of Landmarks
     """
     landmarks = {}
+    loaded_count = 0
+    missing_count = 0
+    total_valid_landmarks = 0
     
     for subject_id in id_list:
-        # Try different VerSe19 paths
+        # Try different VerSe19 paths and file naming conventions
+        # Note: VerSe19 uses _seg-subreg_ctd.json OR _seg-vb_ctd.json for landmarks
         verse_patterns = [
+            # seg-subreg_ctd format (subregion centroids)
             f"dataset-verse19training/derivatives/{subject_id}/{subject_id}_seg-subreg_ctd.json",
             f"dataset-verse19validation/derivatives/{subject_id}/{subject_id}_seg-subreg_ctd.json",
             f"dataset-verse19test/derivatives/{subject_id}/{subject_id}_seg-subreg_ctd.json",
             f"derivatives/{subject_id}/{subject_id}_seg-subreg_ctd.json",
+            # seg-vb_ctd format (vertebral body centroids) - common in VerSe19
+            f"dataset-verse19training/derivatives/{subject_id}/{subject_id}_seg-vb_ctd.json",
+            f"dataset-verse19validation/derivatives/{subject_id}/{subject_id}_seg-vb_ctd.json",
+            f"dataset-verse19test/derivatives/{subject_id}/{subject_id}_seg-vb_ctd.json",
+            f"derivatives/{subject_id}/{subject_id}_seg-vb_ctd.json",
         ]
         
         json_path = None
@@ -219,12 +229,25 @@ def load_all_verse_landmarks(data_folder: str, id_list: List[str], num_landmarks
         if json_path is not None:
             try:
                 landmarks[subject_id] = load_verse_landmarks_json(json_path, num_landmarks)
+                valid_in_subject = sum(1 for lm in landmarks[subject_id] if lm.is_valid)
+                total_valid_landmarks += valid_in_subject
+                loaded_count += 1
             except Exception as e:
                 print(f"Warning: Failed to load landmarks for {subject_id}: {e}")
                 landmarks[subject_id] = [Landmark((0.0, 0.0, 0.0), False) for _ in range(num_landmarks)]
+                missing_count += 1
         else:
             # No landmarks found - create empty list
             landmarks[subject_id] = [Landmark((0.0, 0.0, 0.0), False) for _ in range(num_landmarks)]
+            missing_count += 1
+    
+    # Log summary
+    print(f"[load_all_verse_landmarks] Loaded: {loaded_count}/{len(id_list)} subjects, Missing: {missing_count}, Total valid landmarks: {total_valid_landmarks}")
+    
+    if total_valid_landmarks == 0:
+        print(f"[load_all_verse_landmarks] WARNING: No valid landmarks found! Stage 3 (segmentation) will fail.")
+        print(f"  Searched in: {data_folder}")
+        print(f"  ID list sample: {id_list[:3]}...")
     
     return landmarks
 
@@ -457,35 +480,45 @@ class SpineLocalizationDataset(Dataset):
             f"{image_id}.nii.gz",
             f"{image_id}.nii",
             f"{image_id}_ct.nii.gz",
+            f"{image_id}_ct.nii",
         ]
         
         for pattern in patterns:
             path = os.path.join(self.data_folder, pattern)
-            if os.path.exists(path):
+            if os.path.isfile(path):  # Use isfile to ensure it's not a directory
                 return path
         
         # VerSe19 structure: dataset-*/rawdata/sub-*/sub-*_ct.nii.gz
+        # Prioritize .nii.gz over .nii to avoid matching directories named .nii
         verse_patterns = [
             f"dataset-verse19training/rawdata/{image_id}/{image_id}_ct.nii.gz",
             f"dataset-verse19validation/rawdata/{image_id}/{image_id}_ct.nii.gz",
             f"dataset-verse19test/rawdata/{image_id}/{image_id}_ct.nii.gz",
             f"rawdata/{image_id}/{image_id}_ct.nii.gz",
+            f"dataset-verse19training/rawdata/{image_id}/{image_id}_ct.nii",
+            f"dataset-verse19validation/rawdata/{image_id}/{image_id}_ct.nii",
+            f"dataset-verse19test/rawdata/{image_id}/{image_id}_ct.nii",
+            f"rawdata/{image_id}/{image_id}_ct.nii",
         ]
         
         for pattern in verse_patterns:
             path = os.path.join(self.data_folder, pattern)
-            if os.path.exists(path):
+            if os.path.isfile(path):  # Use isfile to ensure it's not a directory
                 return path
         
-        # Search in subdirectories (fallback)
+        # Search in subdirectories (fallback) - os.walk 'files' list only contains files
         for root, _, files in os.walk(self.data_folder):
             for f in files:
                 # Match image_id in filename and ensure it's a CT image (not mask)
-                if image_id in f and f.endswith('_ct.nii.gz'):
-                    return os.path.join(root, f)
+                if image_id in f and (f.endswith('_ct.nii.gz') or f.endswith('_ct.nii')):
+                    full_path = os.path.join(root, f)
+                    if os.path.isfile(full_path):  # Double-check it's a file
+                        return full_path
                 # Also try exact match without _ct suffix
                 if f == f"{image_id}.nii.gz" or f == f"{image_id}.nii":
-                    return os.path.join(root, f)
+                    full_path = os.path.join(root, f)
+                    if os.path.isfile(full_path):
+                        return full_path
         
         raise FileNotFoundError(f"Image not found for ID: {image_id}")
     
@@ -708,30 +741,37 @@ class VertebraeLocalizationDataset(Dataset):
             f"{image_id}.nii.gz",
             f"{image_id}.nii",
             f"{image_id}_ct.nii.gz",
+            f"{image_id}_ct.nii",
         ]
         
         for pattern in patterns:
             path = os.path.join(self.data_folder, pattern)
-            if os.path.exists(path):
+            if os.path.isfile(path):  # Use isfile to ensure it's not a directory
                 return path
         
-        # VerSe19 structure
+        # VerSe19 structure - prioritize .nii.gz over .nii
         verse_patterns = [
             f"dataset-verse19training/rawdata/{image_id}/{image_id}_ct.nii.gz",
             f"dataset-verse19validation/rawdata/{image_id}/{image_id}_ct.nii.gz",
             f"dataset-verse19test/rawdata/{image_id}/{image_id}_ct.nii.gz",
             f"rawdata/{image_id}/{image_id}_ct.nii.gz",
+            f"dataset-verse19training/rawdata/{image_id}/{image_id}_ct.nii",
+            f"dataset-verse19validation/rawdata/{image_id}/{image_id}_ct.nii",
+            f"dataset-verse19test/rawdata/{image_id}/{image_id}_ct.nii",
+            f"rawdata/{image_id}/{image_id}_ct.nii",
         ]
         
         for pattern in verse_patterns:
             path = os.path.join(self.data_folder, pattern)
-            if os.path.exists(path):
+            if os.path.isfile(path):  # Use isfile to ensure it's not a directory
                 return path
         
         for root, _, files in os.walk(self.data_folder):
             for f in files:
-                if image_id in f and f.endswith('_ct.nii.gz'):
-                    return os.path.join(root, f)
+                if image_id in f and (f.endswith('_ct.nii.gz') or f.endswith('_ct.nii')):
+                    full_path = os.path.join(root, f)
+                    if os.path.isfile(full_path):
+                        return full_path
         
         raise FileNotFoundError(f"Image not found for ID: {image_id}")
     
@@ -896,11 +936,37 @@ class VertebraeSegmentationDataset(Dataset):
     def _build_sample_list(self) -> List[Tuple[str, int]]:
         """Build list of (image_id, vertebra_idx) samples"""
         samples = []
+        missing_ids = []
+        ids_without_valid_landmarks = []
+        
         for image_id in self.id_list:
             landmarks = self.landmarks_dict.get(image_id, [])
+            
+            if not landmarks:
+                missing_ids.append(image_id)
+                continue
+            
+            valid_count = 0
             for i, lm in enumerate(landmarks):
                 if lm.is_valid:
                     samples.append((image_id, i))
+                    valid_count += 1
+            
+            if valid_count == 0:
+                ids_without_valid_landmarks.append(image_id)
+        
+        # Log warnings if issues found
+        if missing_ids:
+            print(f"[VertebraeSegmentationDataset] Warning: {len(missing_ids)} IDs not found in landmarks_dict: {missing_ids[:5]}{'...' if len(missing_ids) > 5 else ''}")
+        
+        if ids_without_valid_landmarks:
+            print(f"[VertebraeSegmentationDataset] Warning: {len(ids_without_valid_landmarks)} IDs have no valid landmarks: {ids_without_valid_landmarks[:5]}{'...' if len(ids_without_valid_landmarks) > 5 else ''}")
+        
+        if not samples:
+            print(f"[VertebraeSegmentationDataset] ERROR: No valid samples found!")
+            print(f"  - id_list has {len(self.id_list)} IDs: {self.id_list[:5]}{'...' if len(self.id_list) > 5 else ''}")
+            print(f"  - landmarks_dict has {len(self.landmarks_dict)} keys: {list(self.landmarks_dict.keys())[:5]}{'...' if len(self.landmarks_dict) > 5 else ''}")
+        
         return samples
     
     def _setup_augmentations(self, config: Optional[dict]):
@@ -938,31 +1004,40 @@ class VertebraeSegmentationDataset(Dataset):
         label_path = None
         
         # Standard patterns in root
-        image_patterns = [f"{image_id}.nii.gz", f"{image_id}_ct.nii.gz"]
-        label_patterns = [f"{image_id}_seg.nii.gz", f"{image_id}_mask.nii.gz"]
+        image_patterns = [
+            f"{image_id}.nii.gz", f"{image_id}.nii", 
+            f"{image_id}_ct.nii.gz", f"{image_id}_ct.nii"
+        ]
+        label_patterns = [
+            f"{image_id}_seg.nii.gz", f"{image_id}_seg.nii", 
+            f"{image_id}_mask.nii.gz", f"{image_id}_mask.nii"
+        ]
         
         for pattern in image_patterns:
             path = os.path.join(self.data_folder, pattern)
-            if os.path.exists(path):
+            if os.path.isfile(path):  # Use isfile to ensure it's not a directory
                 image_path = path
                 break
         
         for pattern in label_patterns:
             path = os.path.join(self.labels_folder, pattern)
-            if os.path.exists(path):
+            if os.path.isfile(path):  # Use isfile to ensure it's not a directory
                 label_path = path
                 break
         
-        # VerSe19 structure
+        # VerSe19 structure - prioritize .nii.gz over .nii
         if image_path is None:
             verse_img_patterns = [
                 f"dataset-verse19training/rawdata/{image_id}/{image_id}_ct.nii.gz",
                 f"dataset-verse19validation/rawdata/{image_id}/{image_id}_ct.nii.gz",
                 f"dataset-verse19test/rawdata/{image_id}/{image_id}_ct.nii.gz",
+                f"dataset-verse19training/rawdata/{image_id}/{image_id}_ct.nii",
+                f"dataset-verse19validation/rawdata/{image_id}/{image_id}_ct.nii",
+                f"dataset-verse19test/rawdata/{image_id}/{image_id}_ct.nii",
             ]
             for pattern in verse_img_patterns:
                 path = os.path.join(self.data_folder, pattern)
-                if os.path.exists(path):
+                if os.path.isfile(path):  # Use isfile to ensure it's not a directory
                     image_path = path
                     break
         
@@ -971,29 +1046,36 @@ class VertebraeSegmentationDataset(Dataset):
                 f"dataset-verse19training/derivatives/{image_id}/{image_id}_seg-vert_msk.nii.gz",
                 f"dataset-verse19validation/derivatives/{image_id}/{image_id}_seg-vert_msk.nii.gz",
                 f"dataset-verse19test/derivatives/{image_id}/{image_id}_seg-vert_msk.nii.gz",
+                f"dataset-verse19training/derivatives/{image_id}/{image_id}_seg-vert_msk.nii",
+                f"dataset-verse19validation/derivatives/{image_id}/{image_id}_seg-vert_msk.nii",
+                f"dataset-verse19test/derivatives/{image_id}/{image_id}_seg-vert_msk.nii",
             ]
             for pattern in verse_lbl_patterns:
                 path = os.path.join(self.labels_folder, pattern)
-                if os.path.exists(path):
+                if os.path.isfile(path):  # Use isfile to ensure it's not a directory
                     label_path = path
                     break
         
-        # Fallback: search
+        # Fallback: search - os.walk 'files' only contains files, but double-check
         if image_path is None:
             for root, _, files in os.walk(self.data_folder):
                 for f in files:
-                    if image_id in f and f.endswith('_ct.nii.gz'):
-                        image_path = os.path.join(root, f)
-                        break
+                    if image_id in f and (f.endswith('_ct.nii.gz') or f.endswith('_ct.nii')):
+                        full_path = os.path.join(root, f)
+                        if os.path.isfile(full_path):
+                            image_path = full_path
+                            break
                 if image_path:
                     break
         
         if label_path is None:
             for root, _, files in os.walk(self.labels_folder):
                 for f in files:
-                    if image_id in f and 'seg-vert_msk' in f and f.endswith('.nii.gz'):
-                        label_path = os.path.join(root, f)
-                        break
+                    if image_id in f and 'seg-vert_msk' in f and (f.endswith('.nii.gz') or f.endswith('.nii')):
+                        full_path = os.path.join(root, f)
+                        if os.path.isfile(full_path):
+                            label_path = full_path
+                            break
                 if label_path:
                     break
         

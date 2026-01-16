@@ -113,41 +113,13 @@ def run_full_pipeline(args, config: PipelineConfig, logger: logging.Logger):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logger.info(f"Using device: {device}")
     
-    # Create models
-    logger.info("Creating models...")
-    
-    stage1_model = SimpleUNet(
-        in_channels=1,
-        num_labels=1,
-        num_filters_base=config.spine_localization.num_filters_base
-    ).to(device)
-    
-    stage2_model = SpatialConfigurationNet(
-        in_channels=1,
-        num_labels=config.vertebrae_localization.num_landmarks,
-        num_filters_base=config.vertebrae_localization.num_filters_base
-    ).to(device)
-    
-    stage3_model = SegmentationUNet(
-        in_channels=1 + config.vertebrae_segmentation.num_labels,
-        num_classes=config.vertebrae_segmentation.num_labels + 1,
-        num_filters_base=config.vertebrae_segmentation.num_filters_base
-    ).to(device)
-    
-    # Load checkpoints
-    logger.info("Loading checkpoints...")
-    stage1_model = load_model(args.stage1_ckpt, stage1_model, device)
-    stage2_model = load_model(args.stage2_ckpt, stage2_model, device)
-    stage3_model = load_model(args.stage3_ckpt, stage3_model, device)
-    
-    logger.info("Models loaded successfully!")
-    
     # Create inference pipeline
+    logger.info("Initializing inference pipeline...")
     pipeline = FullPipelineInference(
-        stage1_model=stage1_model,
-        stage2_model=stage2_model,
-        stage3_model=stage3_model,
         config=config,
+        spine_checkpoint=args.stage1_ckpt,
+        vertebrae_checkpoint=args.stage2_ckpt,
+        segmentation_checkpoint=args.stage3_ckpt,
         device=device
     )
     
@@ -162,42 +134,18 @@ def run_full_pipeline(args, config: PipelineConfig, logger: logging.Logger):
     logger.info(f"Found {len(input_files)} input files")
     
     # Process each file
-    output_dir = Path(args.output)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = str(Path(args.output))
     
     for input_file in input_files:
         logger.info(f"Processing: {input_file.name}")
         
         try:
-            # Load image
-            image, spacing, affine = load_nifti(str(input_file))
-            
             # Run pipeline
-            results = pipeline.run(image, spacing)
-            
-            # Get outputs
-            segmentation = results['segmentation']
-            landmarks = results['landmarks']
-            
-            # Create output filename base
-            base_name = input_file.stem.replace('.nii', '')
-            
-            # Save segmentation
-            seg_nifti = nib.Nifti1Image(segmentation.astype(np.int16), affine)
-            seg_path = output_dir / f'{base_name}_segmentation.nii.gz'
-            nib.save(seg_nifti, str(seg_path))
-            logger.info(f"  Saved segmentation: {seg_path.name}")
-            
-            # Save landmarks
-            landmarks_json_path = output_dir / f'{base_name}_landmarks.json'
-            landmarks_csv_path = output_dir / f'{base_name}_landmarks.csv'
-            save_landmarks_json(landmarks, str(landmarks_json_path))
-            save_landmarks_csv(landmarks, str(landmarks_csv_path))
-            logger.info(f"  Saved landmarks: {landmarks_json_path.name}, {landmarks_csv_path.name}")
-            
-            # Count detected landmarks
-            n_detected = sum(1 for v in landmarks.values() if v is not None)
-            logger.info(f"  Detected {n_detected}/25 vertebrae")
+            pipeline(
+                image_path=str(input_file), 
+                output_dir=output_dir,
+                run_segmentation=True
+            )
             
         except Exception as e:
             logger.error(f"  Error processing {input_file.name}: {e}", exc_info=True)
@@ -242,7 +190,14 @@ def run_stage1_only(args, config: PipelineConfig, logger: logging.Logger):
             image, spacing, affine = load_nifti(str(input_file))
             spine_heatmap, spine_center = inference.run(image, spacing)
             
-            base_name = input_file.stem.replace('.nii', '')
+            # Determine base name safely handling .nii and .nii.gz
+            fname = input_file.name
+            if fname.endswith('.nii.gz'):
+                base_name = fname[:-7]
+            elif fname.endswith('.nii'):
+                base_name = fname[:-4]
+            else:
+                base_name = input_file.stem
             
             # Save heatmap
             heatmap_nifti = nib.Nifti1Image(spine_heatmap.astype(np.float32), affine)
@@ -306,7 +261,14 @@ def run_stage2_only(args, config: PipelineConfig, logger: logging.Logger):
             spine_center = np.array(image.shape) // 2
             landmarks, heatmaps = inference.run(image, spacing, spine_center)
             
-            base_name = input_file.stem.replace('.nii', '')
+            # Determine base name safely handling .nii and .nii.gz
+            fname = input_file.name
+            if fname.endswith('.nii.gz'):
+                base_name = fname[:-7]
+            elif fname.endswith('.nii'):
+                base_name = fname[:-4]
+            else:
+                base_name = input_file.stem
             
             # Save landmarks
             landmarks_path = output_dir / f'{base_name}_landmarks.json'
