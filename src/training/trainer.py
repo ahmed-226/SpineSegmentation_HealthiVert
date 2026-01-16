@@ -334,14 +334,17 @@ class SpineLocalizationTrainer(BaseTrainer):
             
             self.current_iter += 1
             
-            # Logging
-            if self.current_iter % 100 == 0:
+            # Logging (every 10 iterations for progress visibility)
+            if self.current_iter % 10 == 0 or self.current_iter == 1:
                 elapsed = time.time() - start_time
+                iters_per_sec = self.current_iter / elapsed if elapsed > 0 else 0
+                eta = (self.stage_config.max_iterations - self.current_iter) / iters_per_sec if iters_per_sec > 0 else 0
                 logger.info(
                     f"Iter {self.current_iter}/{self.stage_config.max_iterations} | "
                     f"Loss: {losses['loss'].item():.6f} | "
                     f"LR: {self.scheduler.get_last_lr()[0]:.2e} | "
-                    f"Time: {elapsed:.1f}s"
+                    f"Speed: {iters_per_sec:.2f} it/s | "
+                    f"ETA: {eta/60:.1f}min"
                 )
                 self.log_metrics({'loss': losses['loss'].item()}, prefix='train')
             
@@ -652,9 +655,11 @@ class VertebraeLocalizationTrainer(BaseTrainer):
             
             self.current_iter += 1
             
-            # Logging
-            if self.current_iter % 100 == 0:
+            # Logging (every 10 iterations for progress visibility)
+            if self.current_iter % 10 == 0 or self.current_iter == 1:
                 elapsed = time.time() - start_time
+                iters_per_sec = self.current_iter / elapsed if elapsed > 0 else 0
+                eta = (self.stage_config.max_iterations - self.current_iter) / iters_per_sec if iters_per_sec > 0 else 0
                 
                 sigma_str = ""
                 if self.stage_config.learnable_sigma:
@@ -664,8 +669,8 @@ class VertebraeLocalizationTrainer(BaseTrainer):
                 logger.info(
                     f"Iter {self.current_iter}/{self.stage_config.max_iterations} | "
                     f"Loss: {losses['loss'].item():.6f}{sigma_str} | "
-                    f"LR: {self.scheduler.get_last_lr()[0]:.2e} | "
-                    f"Time: {elapsed:.1f}s"
+                    f"Speed: {iters_per_sec:.2f} it/s | "
+                    f"ETA: {eta/60:.1f}min"
                 )
                 self.log_metrics({'loss': losses['loss'].item()}, prefix='train')
             
@@ -917,13 +922,16 @@ class VertebraeSegmentationTrainer(BaseTrainer):
             
             self.current_iter += 1
             
-            if self.current_iter % 100 == 0:
+            # Logging (every 10 iterations for progress visibility)
+            if self.current_iter % 10 == 0 or self.current_iter == 1:
                 elapsed = time.time() - start_time
+                iters_per_sec = self.current_iter / elapsed if elapsed > 0 else 0
+                eta = (self.stage_config.max_iterations - self.current_iter) / iters_per_sec if iters_per_sec > 0 else 0
                 logger.info(
                     f"Iter {self.current_iter}/{self.stage_config.max_iterations} | "
                     f"Loss: {losses['loss'].item():.6f} | "
-                    f"LR: {self.scheduler.get_last_lr()[0]:.2e} | "
-                    f"Time: {elapsed:.1f}s"
+                    f"Speed: {iters_per_sec:.2f} it/s | "
+                    f"ETA: {eta/60:.1f}min"
                 )
                 self.log_metrics({'loss': losses['loss'].item()}, prefix='train')
             

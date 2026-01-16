@@ -95,8 +95,8 @@ class AugmentationConfig:
     
     # Elastic deformation
     elastic_deformation: bool = True
-    elastic_grid_nodes: Tuple[int, int, int] = (6, 6, 6)
-    elastic_max_deformation: Tuple[float, float, float] = (25.0, 25.0, 25.0)  # mm
+    elastic_grid_nodes: Tuple[int, int, int] = (7, 7, 7)  # More control points
+    elastic_max_deformation: Tuple[float, float, float] = (8.0, 8.0, 8.0)  # Reduced to avoid folding
     
     # Intensity augmentations
     intensity_shift_range: float = 0.25
@@ -154,7 +154,7 @@ class PipelineConfig:
     
     # Device configuration
     device: str = 'cuda'
-    num_workers: int = 4
+    num_workers: int = 2  # Default to 2 for Colab compatibility
     pin_memory: bool = True
     
     # Random seed

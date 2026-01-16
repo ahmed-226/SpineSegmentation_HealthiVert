@@ -679,11 +679,11 @@ class VertebraeLocalizationDataset(Dataset):
                 flip_probability=config.get('flip_probability', 0.5)
             ))
         
-        # Elastic deformation
+        # Elastic deformation (reduced displacement to avoid folding warning)
         if config.get('elastic_deformation', True):
             transforms.append(tio.RandomElasticDeformation(
                 num_control_points=7,
-                max_displacement=config.get('elastic_max_deformation', (25, 25, 25))
+                max_displacement=config.get('elastic_max_deformation', (8, 8, 8))  # Reduced from 25
             ))
         
         # Intensity augmentations
