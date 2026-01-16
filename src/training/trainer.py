@@ -385,6 +385,9 @@ class VertebraeLocalizationTrainer(BaseTrainer):
         if device is not None:
             self.device = device
         
+        # Initialize sigmas first (needed by optimizer)
+        self._init_sigmas()
+        
         # Initialize components
         if model is not None:
             self.model = model.to(self.device)
@@ -400,6 +403,20 @@ class VertebraeLocalizationTrainer(BaseTrainer):
             self._init_data_loaders()
         
         self.init_tensorboard()
+    
+    def _init_sigmas(self):
+        """Initialize learnable sigma parameters for heatmap generation"""
+        if self.stage_config.learnable_sigma:
+            self.sigmas = LearnableSigmas(
+                num_landmarks=self.stage_config.num_landmarks,
+                initial_sigma=self.stage_config.heatmap_sigma
+            ).to(self.device)
+        else:
+            self.sigmas = torch.full(
+                (self.stage_config.num_landmarks,),
+                self.stage_config.heatmap_sigma,
+                device=self.device
+            )
     
     def _init_data_loaders_from_datasets(self, train_dataset, val_dataset):
         """Initialize data loaders from provided datasets"""
@@ -434,18 +451,7 @@ class VertebraeLocalizationTrainer(BaseTrainer):
             spatial_activation=self.stage_config.spatial_activation
         ).to(self.device)
         
-        # Learnable sigmas
-        if self.stage_config.learnable_sigma:
-            self.sigmas = LearnableSigmas(
-                num_landmarks=self.stage_config.num_landmarks,
-                initial_sigma=self.stage_config.heatmap_sigma
-            ).to(self.device)
-        else:
-            self.sigmas = torch.full(
-                (self.stage_config.num_landmarks,),
-                self.stage_config.heatmap_sigma,
-                device=self.device
-            )
+        # Note: sigmas are initialized in _init_sigmas() which is called before this
         
         logger.info(f"Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
     
