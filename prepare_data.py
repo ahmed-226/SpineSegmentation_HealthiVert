@@ -133,6 +133,8 @@ def main():
     parser = argparse.ArgumentParser(description='Prepare data split for VerSe pipeline')
     parser.add_argument('--data_dir', type=str, required=True,
                         help='Path to VerSe19 dataset directory')
+    parser.add_argument('--output_dir', type=str, default='.',
+                        help='Directory to save split files (default: current directory)')
     parser.add_argument('--val_split', type=float, default=0.2,
                         help='Validation split ratio (only used if no predefined splits)')
     parser.add_argument('--seed', type=int, default=42,
@@ -211,9 +213,12 @@ def main():
         print(f"  Test: {len(test_ids)}")
     
     # Write split files
-    train_file = data_dir / 'train.txt'
-    val_file = data_dir / 'val.txt'
-    test_file = data_dir / 'test.txt'
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    train_file = output_dir / 'train.txt'
+    val_file = output_dir / 'val.txt'
+    test_file = output_dir / 'test.txt'
     
     with open(train_file, 'w') as f:
         f.write('\n'.join(sorted(train_ids)))
@@ -226,7 +231,7 @@ def main():
             f.write('\n'.join(sorted(test_ids)))
     
     # Write subjects info JSON for reference
-    info_file = data_dir / 'subjects_info.json'
+    info_file = output_dir / 'subjects_info.json'
     with open(info_file, 'w') as f:
         # Convert Path objects to strings for JSON serialization
         subjects_json = {}

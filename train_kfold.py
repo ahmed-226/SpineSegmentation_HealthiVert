@@ -308,6 +308,8 @@ def main():
                         help='Path to dataset directory')
     parser.add_argument('--output_dir', type=str, required=True,
                         help='Path to output directory')
+    parser.add_argument('--splits_dir', type=str, default=None,
+                        help='Directory containing train.txt/val.txt (defaults to output_dir, then data_dir)')
     
     # Stage selection
     parser.add_argument('--stage', type=str, default='all',
@@ -419,9 +421,19 @@ def main():
         config.vertebrae_segmentation.snapshot_interval = args.snapshot_interval
     
     # Load all subject IDs
-    train_file = Path(args.data_dir) / 'train.txt'
-    val_file = Path(args.data_dir) / 'val.txt'
-    
+    if args.splits_dir:
+        train_file = Path(args.splits_dir) / 'train.txt'
+        val_file = Path(args.splits_dir) / 'val.txt'
+    else:
+        # Check current directory first (common usage with prepare_data.py)
+        train_file = Path('.') / 'train.txt'
+        val_file = Path('.') / 'val.txt'
+        
+        if not train_file.exists() and not val_file.exists():
+            # Check data_dir
+             train_file = Path(args.data_dir) / 'train.txt'
+             val_file = Path(args.data_dir) / 'val.txt'
+
     all_ids = []
     if train_file.exists():
         all_ids.extend(load_id_list(str(train_file)))
@@ -441,10 +453,15 @@ def main():
         if rawdata_dirs:
             for rd in rawdata_dirs:
                 # Find all sub-* directories inside rawdata
-                subs = [p.name for p in rd.glob('sub-*') if p.is_dir()]
-                all_ids.extend(subs)
-                if subs:
-                    logger.info(f"Found {len(subs)} subjects in {rd}")
+                for p in rd.glob('sub-*'):
+                    if p.is_dir():
+                        # Check if it contains a CT image
+                        has_image = list(p.glob('*_ct.nii.gz')) or list(p.glob('*_ct.nii')) or \
+                                   list(p.glob('*.nii.gz')) or list(p.glob('*.nii'))
+                        if has_image:
+                            all_ids.append(p.name)
+                
+                logger.info(f"Found {len(all_ids)} valid subjects in {rd}")
         
         # Method 2: Recursive search for derivatives/sub-*
         # This handles /content/verse19/dataset-verse19training/derivatives/sub-*

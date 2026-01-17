@@ -403,6 +403,13 @@ class SpineLocalizationTrainer(BaseTrainer):
             if self.current_iter % self.stage_config.snapshot_interval == 0:
                 self.save_checkpoint(f'checkpoint_{self.current_iter}.pth')
         
+        # Final validation to ensure best model is saved
+        val_metrics = self.validate()
+        logger.info(f"Final validation loss: {val_metrics['loss']:.6f}")
+        if val_metrics['loss'] < self.best_val_loss:
+            self.best_val_loss = val_metrics['loss']
+            self.save_checkpoint('best_model.pth')
+        
         # Always save final model at end of training
         self.save_checkpoint('final_model.pth')
         logger.info("Training completed!")
@@ -732,6 +739,16 @@ class VertebraeLocalizationTrainer(BaseTrainer):
             if self.current_iter % self.stage_config.snapshot_interval == 0:
                 self.save_checkpoint(f'checkpoint_{self.current_iter}.pth')
         
+        # Final validation to ensure best model is saved
+        val_metrics = self.validate()
+        logger.info(
+            f"Final validation - Loss: {val_metrics['loss']:.6f}, "
+            f"Mean distance: {val_metrics['mean_distance_mm']:.2f} mm"
+        )
+        if val_metrics['loss'] < self.best_val_loss:
+            self.best_val_loss = val_metrics['loss']
+            self.save_checkpoint('best_model.pth')
+        
         # Always save final model at end of training
         self.save_checkpoint('final_model.pth')
         logger.info("Training completed!")
@@ -991,6 +1008,16 @@ class VertebraeSegmentationTrainer(BaseTrainer):
             
             if self.current_iter % self.stage_config.snapshot_interval == 0:
                 self.save_checkpoint(f'checkpoint_{self.current_iter}.pth')
+        
+        # Final validation to ensure best model is saved
+        val_metrics = self.validate()
+        logger.info(
+            f"Final validation - Loss: {val_metrics['loss']:.6f}, "
+            f"Mean Dice: {val_metrics['mean_dice']:.4f}"
+        )
+        if val_metrics['loss'] < self.best_val_loss:
+            self.best_val_loss = val_metrics['loss']
+            self.save_checkpoint('best_model.pth')
         
         # Always save final model at end of training
         self.save_checkpoint('final_model.pth')

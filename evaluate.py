@@ -610,6 +610,8 @@ def main():
                         help='GPU device ID')
     parser.add_argument('--experiment_name', type=str, default='verse2019',
                         help='Experiment name for reports')
+    parser.add_argument('--splits_dir', type=str, default=None,
+                        help='Directory containing train.txt/val.txt')
     
     args = parser.parse_args()
     
@@ -633,12 +635,28 @@ def main():
     config = PipelineConfig()
     
     # Load subject IDs for evaluation
-    val_file = Path(args.data_dir) / 'val.txt'
+    if args.splits_dir:
+        val_file = Path(args.splits_dir) / 'val.txt'
+    else:
+        # Check current directory/output directory first
+        val_file = Path('.') / 'val.txt'
+        if not val_file.exists():
+            val_file = Path(args.data_dir) / 'val.txt'
+
     if val_file.exists():
         val_ids = load_id_list(str(val_file))
     else:
-        print("Warning: No val.txt found. Please specify validation IDs.")
-        return
+        print(f"Warning: No val.txt found at {val_file}. Please specify validation IDs.")
+        # If no validation file, maybe we try test.txt?
+        test_file = Path('.') / 'test.txt'
+        if not test_file.exists() and args.splits_dir:
+             test_file = Path(args.splits_dir) / 'test.txt'
+        
+        if test_file.exists():
+            print(f"Loading test IDs from {test_file}")
+            val_ids = load_id_list(str(test_file))
+        else:
+            return
     
     print(f"Evaluating on {len(val_ids)} subjects")
     
